@@ -52,7 +52,8 @@ export default function TrackPanel() {
                 type="text"
                 value={t.name}
                 onChange={(e) => updateTrack(t.id, { name: e.target.value })}
-                className="flex-1 min-w-0 px-1.5 py-0.5 text-sm bg-transparent border-0 focus:outline-none focus:bg-slate-50 rounded"
+                className="flex-1 min-w-0 px-2 py-1 text-sm bg-slate-50 border border-slate-200 rounded focus:outline-none focus:ring-1 focus:ring-primary-light focus:bg-white"
+                title="Click to edit track name"
               />
               <select
                 value={t.type}
@@ -64,16 +65,19 @@ export default function TrackPanel() {
                 ))}
               </select>
               <button onClick={() => reorderTrack(t.id, 'up')} disabled={idx === 0}
-                className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-20 cursor-pointer bg-transparent border-0 transition-colors">
-                <ChevronUp size={12} />
+                className="p-1 text-slate-400 hover:text-primary hover:bg-blue-50 disabled:opacity-20 cursor-pointer bg-transparent border-0 transition-colors rounded"
+                title="Move up">
+                <ChevronUp size={16} />
               </button>
               <button onClick={() => reorderTrack(t.id, 'down')} disabled={idx === tracks.length - 1}
-                className="p-0.5 text-slate-300 hover:text-slate-600 disabled:opacity-20 cursor-pointer bg-transparent border-0 transition-colors">
-                <ChevronDown size={12} />
+                className="p-1 text-slate-400 hover:text-primary hover:bg-blue-50 disabled:opacity-20 cursor-pointer bg-transparent border-0 transition-colors rounded"
+                title="Move down">
+                <ChevronDown size={16} />
               </button>
               <button onClick={() => removeTrack(t.id)}
-                className="p-0.5 text-slate-300 hover:text-red-500 cursor-pointer bg-transparent border-0 transition-colors">
-                <Trash2 size={12} />
+                className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 cursor-pointer bg-transparent border-0 transition-colors rounded"
+                title="Delete track">
+                <Trash2 size={14} />
               </button>
             </div>
             {/* Row 2: bar height slider */}

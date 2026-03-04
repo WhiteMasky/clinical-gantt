@@ -68,31 +68,6 @@ export default function GanttChart() {
         </text>
       )}
 
-      {/* Background rows */}
-      {tracks.map((_, i) => (
-        <rect
-          key={`row-${i}`}
-          x={PADDING_LEFT}
-          y={PADDING_TOP + i * rowHeight}
-          width={chartWidth}
-          height={rowHeight}
-          fill={i % 2 === 0 ? '#f8fafc' : '#ffffff'}
-        />
-      ))}
-
-      {/* Horizontal row dividers */}
-      {tracks.map((_, i) => (
-        <line
-          key={`hline-${i}`}
-          x1={PADDING_LEFT}
-          y1={PADDING_TOP + (i + 1) * rowHeight}
-          x2={PADDING_LEFT + chartWidth}
-          y2={PADDING_TOP + (i + 1) * rowHeight}
-          stroke="#f1f5f9"
-          strokeWidth={0.5}
-        />
-      ))}
-
       {/* Vertical grid */}
       {xTicks.map((d) => (
         <line
