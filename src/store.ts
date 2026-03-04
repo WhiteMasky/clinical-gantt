@@ -40,7 +40,7 @@ const defaultConfig: ChartConfig = {
   rowHeight: 52,
   fontSize: 12,
   xAxisInterval: 5,
-  canvasWidth: 900,
+  canvasWidth: 1000,
   exportBg: 'white',
 };
 

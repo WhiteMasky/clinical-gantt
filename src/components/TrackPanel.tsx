@@ -4,9 +4,9 @@ import { useStore, CB_PALETTE } from '../store';
 import type { Track } from '../types';
 
 const TYPE_OPTIONS: { value: Track['type']; label: string }[] = [
+  { value: 'other', label: 'Other' },
   { value: 'medication', label: 'Medication' },
   { value: 'detection', label: 'Detection' },
-  { value: 'other', label: 'Other' },
 ];
 
 export default function TrackPanel() {
@@ -17,7 +17,7 @@ export default function TrackPanel() {
   const reorderTrack = useStore((s) => s.reorderTrack);
 
   const [newName, setNewName] = useState('');
-  const [newType, setNewType] = useState<Track['type']>('medication');
+  const [newType, setNewType] = useState<Track['type']>('other');
 
   const handleAdd = () => {
     const name = newName.trim() || `Track ${tracks.length + 1}`;

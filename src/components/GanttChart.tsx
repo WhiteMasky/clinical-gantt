@@ -3,9 +3,9 @@ import { useStore, diffDays } from '../store';
 import type { Track, Segment } from '../types';
 
 const PADDING_LEFT = 120;
-const PADDING_RIGHT = 40;
+const PADDING_RIGHT = 80;
 const PADDING_TOP = 30;
-const PADDING_BOTTOM = 55;
+const PADDING_BOTTOM = 40;
 
 export default function GanttChart() {
   const tracks = useStore((s) => s.tracks);
@@ -134,28 +134,6 @@ export default function GanttChart() {
           </text>
         </g>
       ))}
-
-      {/* Admission / Discharge sub-labels (real dates) */}
-      <text
-        x={dayToX(0)}
-        y={PADDING_TOP + chartHeight + 33}
-        textAnchor="middle"
-        fontSize={fontSize - 2}
-        fill="#94a3b8"
-        fontStyle="italic"
-      >
-        Admission ({admissionDate})
-      </text>
-      <text
-        x={dayToX(totalDays)}
-        y={PADDING_TOP + chartHeight + 33}
-        textAnchor="middle"
-        fontSize={fontSize - 2}
-        fill="#94a3b8"
-        fontStyle="italic"
-      >
-        Discharge ({dischargeDate})
-      </text>
 
       {/* Y-axis line */}
       <line
