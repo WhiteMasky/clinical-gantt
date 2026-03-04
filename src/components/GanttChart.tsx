@@ -4,7 +4,7 @@ import type { Track, Segment } from '../types';
 
 const PADDING_LEFT = 120;
 const PADDING_RIGHT = 80;
-const PADDING_TOP = 30;
+const PADDING_TOP = 70;
 const PADDING_BOTTOM = 40;
 
 export default function GanttChart() {
@@ -58,7 +58,7 @@ export default function GanttChart() {
       {patientName && (
         <text
           x={svgWidth / 2}
-          y={PADDING_TOP - 12}
+          y={20}
           textAnchor="middle"
           fontSize={fontSize + 2}
           fill="#1e293b"
