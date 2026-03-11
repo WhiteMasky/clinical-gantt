@@ -104,6 +104,7 @@ interface StoreActions {
 
   updateConfig: (updates: Partial<ChartConfig>) => void;
   resetToDefault: () => void;
+  loadProject: (state: ChartState) => void;
 }
 
 type Store = ChartState & StoreActions;
@@ -196,5 +197,10 @@ export const useStore = create<Store>((set) => ({
     };
     saveState(next);
     set(next);
+  },
+
+  loadProject: (state) => {
+    saveState(state);
+    set({ tracks: state.tracks, segments: state.segments, config: state.config });
   },
 }));

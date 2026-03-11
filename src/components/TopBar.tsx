@@ -1,12 +1,30 @@
 import { useRef, useCallback } from 'react';
-import { Download, Image, RotateCcw } from 'lucide-react';
+import { Download, Image, RotateCcw, Save, FolderOpen } from 'lucide-react';
 import { useStore } from '../store';
+import type { ChartState } from '../types';
 import html2canvas from 'html2canvas';
+
+/** Minimal runtime check that an imported object looks like a valid ChartState. */
+function isValidProject(obj: unknown): obj is ChartState {
+  if (!obj || typeof obj !== 'object') return false;
+  const o = obj as Record<string, unknown>;
+  return (
+    Array.isArray(o.tracks) &&
+    Array.isArray(o.segments) &&
+    !!o.config &&
+    typeof o.config === 'object' &&
+    typeof (o.config as Record<string, unknown>).admissionDate === 'string'
+  );
+}
 
 export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDivElement | null> }) {
   const resetToDefault = useStore((s) => s.resetToDefault);
+  const loadProject = useStore((s) => s.loadProject);
+  const tracks = useStore((s) => s.tracks);
+  const segments = useStore((s) => s.segments);
   const config = useStore((s) => s.config);
   const downloadLink = useRef<HTMLAnchorElement>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
 
   const exportSVG = useCallback(() => {
     if (!chartRef.current) return;
@@ -52,6 +70,48 @@ export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDiv
     }, 'image/png');
   }, [chartRef, config.exportBg]);
 
+  const handleSaveProject = useCallback(() => {
+    const project: ChartState = { tracks, segments, config };
+    const json = JSON.stringify(project, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    if (downloadLink.current) {
+      downloadLink.current.href = url;
+      const safeName = config.patientName.replace(/[^a-zA-Z0-9_-]/g, '_') || 'project';
+      downloadLink.current.download = `${safeName}.gantt.json`;
+      downloadLink.current.click();
+    }
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, [tracks, segments, config]);
+
+  const handleImportProject = useCallback(() => {
+    fileInput.current?.click();
+  }, []);
+
+  const handleFileChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = JSON.parse(reader.result as string);
+          if (!isValidProject(parsed)) {
+            window.alert('Invalid project file. Expected a .gantt.json file exported from this app.');
+            return;
+          }
+          loadProject(parsed);
+        } catch {
+          window.alert('Failed to parse file. Please select a valid JSON project file.');
+        }
+      };
+      reader.readAsText(file);
+      // Reset value so the same file can be imported again
+      e.target.value = '';
+    },
+    [loadProject],
+  );
+
   const handleReset = useCallback(() => {
     if (window.confirm('Reset all data to defaults? This cannot be undone.')) {
       resetToDefault();
@@ -91,6 +151,28 @@ export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDiv
           <Image size={14} />
           PNG
         </button>
+        <div className="w-px h-6 bg-border mx-1" />
+        <button
+          onClick={handleSaveProject}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-emerald-700 bg-emerald-50 hover:bg-emerald-100 rounded-md transition-colors cursor-pointer border-0"
+        >
+          <Save size={14} />
+          Save
+        </button>
+        <button
+          onClick={handleImportProject}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-md transition-colors cursor-pointer border-0"
+        >
+          <FolderOpen size={14} />
+          Import
+        </button>
+        <input
+          ref={fileInput}
+          type="file"
+          accept=".json,.gantt.json"
+          className="hidden"
+          onChange={handleFileChange}
+        />
         <div className="w-px h-6 bg-border mx-1" />
         <button
           onClick={handleReset}
