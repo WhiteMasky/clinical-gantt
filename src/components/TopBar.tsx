@@ -2,7 +2,6 @@ import { useRef, useCallback } from 'react';
 import { Download, Image, RotateCcw, Save, FolderOpen } from 'lucide-react';
 import { useStore } from '../store';
 import type { ChartState } from '../types';
-import html2canvas from 'html2canvas';
 
 /** Minimal runtime check that an imported object looks like a valid ChartState. */
 function isValidProject(obj: unknown): obj is ChartState {
@@ -26,11 +25,25 @@ export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDiv
   const downloadLink = useRef<HTMLAnchorElement>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  const exportSVG = useCallback(() => {
-    if (!chartRef.current) return;
+  /** Build a clean SVG string from the chart (without drag handles). */
+  const buildSvgString = useCallback((): { svgString: string; width: number; height: number } | null => {
+    if (!chartRef.current) return null;
     const svgEl = chartRef.current.querySelector('svg');
-    if (!svgEl) return;
+    if (!svgEl) return null;
     const clone = svgEl.cloneNode(true) as SVGSVGElement;
+
+    // Remove drag-handle groups (they have opacity-0 class for interactive use only)
+    clone.querySelectorAll('[style*="cursor"]').forEach((el) => {
+      const parent = el.closest('g');
+      if (parent && parent.getAttribute('class')?.includes('opacity-0')) {
+        parent.remove();
+      }
+    });
+
+    // Remove pointer events from clone
+    clone.removeAttribute('onpointermove');
+    clone.removeAttribute('onpointerup');
+
     // set background
     if (config.exportBg === 'white') {
       const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
@@ -39,9 +52,19 @@ export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDiv
       rect.setAttribute('fill', 'white');
       clone.insertBefore(rect, clone.firstChild);
     }
+
+    const width = parseFloat(clone.getAttribute('width') || '1000');
+    const height = parseFloat(clone.getAttribute('height') || '500');
+
     const serializer = new XMLSerializer();
     const svgString = serializer.serializeToString(clone);
-    const blob = new Blob([svgString], { type: 'image/svg+xml;charset=utf-8' });
+    return { svgString, width, height };
+  }, [chartRef, config.exportBg]);
+
+  const exportSVG = useCallback(() => {
+    const result = buildSvgString();
+    if (!result) return;
+    const blob = new Blob([result.svgString], { type: 'image/svg+xml;charset=utf-8' });
     const url = URL.createObjectURL(blob);
     if (downloadLink.current) {
       downloadLink.current.href = url;
@@ -49,26 +72,50 @@ export default function TopBar({ chartRef }: { chartRef: React.RefObject<HTMLDiv
       downloadLink.current.click();
     }
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-  }, [chartRef, config.exportBg]);
+  }, [buildSvgString]);
 
   const exportPNG = useCallback(async () => {
-    if (!chartRef.current) return;
-    const svgEl = chartRef.current.querySelector('svg');
-    if (!svgEl) return;
-    const canvas = await html2canvas(chartRef.current, {
-      scale: 4, // 4x for high DPI (~300+ DPI on most displays)
-      backgroundColor: config.exportBg === 'white' ? '#ffffff' : null,
-      useCORS: true,
+    const result = buildSvgString();
+    if (!result) return;
+
+    const scale = 4; // 4x for high DPI (~300+ DPI)
+    const canvas = document.createElement('canvas');
+    canvas.width = result.width * scale;
+    canvas.height = result.height * scale;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Fill background
+    if (config.exportBg === 'white') {
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+
+    // Render SVG to canvas via Image
+    const img = new window.Image();
+    const svgBlob = new Blob([result.svgString], { type: 'image/svg+xml;charset=utf-8' });
+    const url = URL.createObjectURL(svgBlob);
+
+    await new Promise<void>((resolve, reject) => {
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve();
+      };
+      img.onerror = reject;
+      img.src = url;
     });
+
+    URL.revokeObjectURL(url);
+
     canvas.toBlob((blob) => {
       if (!blob || !downloadLink.current) return;
-      const url = URL.createObjectURL(blob);
-      downloadLink.current.href = url;
+      const blobUrl = URL.createObjectURL(blob);
+      downloadLink.current.href = blobUrl;
       downloadLink.current.download = 'clinical-gantt.png';
       downloadLink.current.click();
-      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     }, 'image/png');
-  }, [chartRef, config.exportBg]);
+  }, [buildSvgString, config.exportBg]);
 
   const handleSaveProject = useCallback(() => {
     const project: ChartState = { tracks, segments, config };

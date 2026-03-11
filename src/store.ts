@@ -41,6 +41,11 @@ const defaultConfig: ChartConfig = {
   fontSize: 12,
   xAxisInterval: 5,
   canvasWidth: 1000,
+  paddingLeft: 120,
+  paddingRight: 80,
+  paddingTop: 70,
+  paddingBottom: 40,
+  trackGap: 0,
   exportBg: 'white',
 };
 
@@ -84,7 +89,11 @@ function saveState(state: ChartState) {
 
 function getInitialState(): ChartState {
   const saved = loadState();
-  if (saved) return saved;
+  if (saved) {
+    // Merge defaults for any fields added after v3 (padding, trackGap, etc.)
+    saved.config = { ...defaultConfig, ...saved.config };
+    return saved;
+  }
   return {
     tracks: defaultTracks,
     segments: defaultSegments,

@@ -1,29 +1,45 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback, useRef } from 'react';
 import { useStore, diffDays } from '../store';
 import type { Track, Segment } from '../types';
 
-const PADDING_LEFT = 120;
-const PADDING_RIGHT = 80;
-const PADDING_TOP = 70;
-const PADDING_BOTTOM = 40;
+type DragTarget =
+  | { kind: 'paddingLeft' }
+  | { kind: 'paddingRight' }
+  | { kind: 'paddingTop' }
+  | { kind: 'paddingBottom' };
 
 export default function GanttChart() {
   const tracks = useStore((s) => s.tracks);
   const segments = useStore((s) => s.segments);
   const config = useStore((s) => s.config);
+  const updateConfig = useStore((s) => s.updateConfig);
 
-  const { admissionDate, dischargeDate, rowHeight, fontSize, xAxisInterval, canvasWidth, patientName } = config;
+  const {
+    admissionDate,
+    dischargeDate,
+    rowHeight,
+    fontSize,
+    xAxisInterval,
+    canvasWidth,
+    patientName,
+    paddingLeft,
+    paddingRight,
+    paddingTop,
+    paddingBottom,
+    trackGap,
+  } = config;
+
   const totalDays = diffDays(admissionDate, dischargeDate);
 
-  const chartWidth = canvasWidth - PADDING_LEFT - PADDING_RIGHT;
-  const chartHeight = tracks.length * rowHeight;
+  const chartWidth = canvasWidth - paddingLeft - paddingRight;
+  const chartHeight = tracks.length * rowHeight + Math.max(0, tracks.length - 1) * trackGap;
   const svgWidth = canvasWidth;
-  const svgHeight = PADDING_TOP + chartHeight + PADDING_BOTTOM;
+  const svgHeight = paddingTop + chartHeight + paddingBottom;
 
   /** Convert a day-number (relative to admission = 0) to an X coordinate. */
   const dayToX = useMemo(
-    () => (dayNum: number) => PADDING_LEFT + (dayNum / totalDays) * chartWidth,
-    [totalDays, chartWidth],
+    () => (dayNum: number) => paddingLeft + (dayNum / totalDays) * chartWidth,
+    [totalDays, chartWidth, paddingLeft],
   );
 
   /** Convert an ISO date string to a day-number relative to admission. */
@@ -34,9 +50,12 @@ export default function GanttChart() {
 
   const trackY = useMemo(() => {
     const map = new Map<string, number>();
-    tracks.forEach((t, i) => map.set(t.id, PADDING_TOP + i * rowHeight + rowHeight / 2));
+    tracks.forEach((t, i) => {
+      const y = paddingTop + i * (rowHeight + trackGap) + rowHeight / 2;
+      map.set(t.id, y);
+    });
     return map;
-  }, [tracks, rowHeight]);
+  }, [tracks, rowHeight, paddingTop, trackGap]);
 
   // X ticks (in day-numbers)
   const xTicks = useMemo(() => {
@@ -46,13 +65,62 @@ export default function GanttChart() {
     return ticks;
   }, [totalDays, xAxisInterval]);
 
+  // ── Drag logic ──
+  const svgRef = useRef<SVGSVGElement>(null);
+  const [dragTarget, setDragTarget] = useState<DragTarget | null>(null);
+  const dragStartPos = useRef({ x: 0, y: 0 });
+  const dragStartVal = useRef(0);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent, target: DragTarget) => {
+      e.preventDefault();
+      e.stopPropagation();
+      (e.target as Element).setPointerCapture(e.pointerId);
+      dragStartPos.current = { x: e.clientX, y: e.clientY };
+      if (target.kind === 'paddingLeft') dragStartVal.current = paddingLeft;
+      else if (target.kind === 'paddingRight') dragStartVal.current = paddingRight;
+      else if (target.kind === 'paddingTop') dragStartVal.current = paddingTop;
+      else if (target.kind === 'paddingBottom') dragStartVal.current = paddingBottom;
+      setDragTarget(target);
+    },
+    [paddingLeft, paddingRight, paddingTop, paddingBottom],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!dragTarget) return;
+      const dx = e.clientX - dragStartPos.current.x;
+      const dy = e.clientY - dragStartPos.current.y;
+
+      if (dragTarget.kind === 'paddingLeft') {
+        updateConfig({ paddingLeft: Math.max(20, Math.round(dragStartVal.current + dx)) });
+      } else if (dragTarget.kind === 'paddingRight') {
+        updateConfig({ paddingRight: Math.max(20, Math.round(dragStartVal.current - dx)) });
+      } else if (dragTarget.kind === 'paddingTop') {
+        updateConfig({ paddingTop: Math.max(20, Math.round(dragStartVal.current + dy)) });
+      } else if (dragTarget.kind === 'paddingBottom') {
+        updateConfig({ paddingBottom: Math.max(20, Math.round(dragStartVal.current - dy)) });
+      }
+    },
+    [dragTarget, updateConfig],
+  );
+
+  const handlePointerUp = useCallback(() => {
+    setDragTarget(null);
+  }, []);
+
+  const dragHandleStyle = 'opacity-0 hover:opacity-100 transition-opacity';
+
   return (
     <svg
+      ref={svgRef}
       width={svgWidth}
       height={svgHeight}
       viewBox={`0 0 ${svgWidth} ${svgHeight}`}
       xmlns="http://www.w3.org/2000/svg"
       style={{ fontFamily: "-apple-system, BlinkMacSystemFont, 'Segoe UI', 'Inter', sans-serif" }}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
       {/* Title */}
       {patientName && (
@@ -73,9 +141,9 @@ export default function GanttChart() {
         <line
           key={`grid-${d}`}
           x1={dayToX(d)}
-          y1={PADDING_TOP}
+          y1={paddingTop}
           x2={dayToX(d)}
-          y2={PADDING_TOP + chartHeight}
+          y2={paddingTop + chartHeight}
           stroke="#e2e8f0"
           strokeWidth={d === 0 || d === totalDays ? 1.5 : 0.5}
           strokeDasharray={d === 0 || d === totalDays ? undefined : '2,4'}
@@ -84,23 +152,23 @@ export default function GanttChart() {
 
       {/* X-axis line + ticks + labels */}
       <line
-        x1={PADDING_LEFT}
-        y1={PADDING_TOP + chartHeight}
-        x2={PADDING_LEFT + chartWidth}
-        y2={PADDING_TOP + chartHeight}
+        x1={paddingLeft}
+        y1={paddingTop + chartHeight}
+        x2={paddingLeft + chartWidth}
+        y2={paddingTop + chartHeight}
         stroke="#94a3b8"
         strokeWidth={1}
       />
       {xTicks.map((d) => (
         <g key={`xtick-${d}`}>
           <line
-            x1={dayToX(d)} y1={PADDING_TOP + chartHeight}
-            x2={dayToX(d)} y2={PADDING_TOP + chartHeight + 5}
+            x1={dayToX(d)} y1={paddingTop + chartHeight}
+            x2={dayToX(d)} y2={paddingTop + chartHeight + 5}
             stroke="#94a3b8" strokeWidth={1}
           />
           <text
             x={dayToX(d)}
-            y={PADDING_TOP + chartHeight + 19}
+            y={paddingTop + chartHeight + 19}
             textAnchor="middle"
             fontSize={fontSize - 1}
             fill="#64748b"
@@ -112,8 +180,8 @@ export default function GanttChart() {
 
       {/* Y-axis line */}
       <line
-        x1={PADDING_LEFT} y1={PADDING_TOP}
-        x2={PADDING_LEFT} y2={PADDING_TOP + chartHeight}
+        x1={paddingLeft} y1={paddingTop}
+        x2={paddingLeft} y2={paddingTop + chartHeight}
         stroke="#94a3b8" strokeWidth={1}
       />
 
@@ -132,7 +200,7 @@ export default function GanttChart() {
               opacity={0.7}
             />
             <text
-              x={PADDING_LEFT - 10}
+              x={paddingLeft - 10}
               y={cy}
               textAnchor="end"
               dominantBaseline="central"
@@ -164,6 +232,80 @@ export default function GanttChart() {
           />
         );
       })}
+
+      {/* ── Drag handles for padding adjustment ── */}
+      {/* Left padding handle */}
+      <g className={dragHandleStyle}>
+        <rect
+          x={paddingLeft - 3}
+          y={paddingTop}
+          width={6}
+          height={chartHeight}
+          fill="#3b82f6"
+          opacity={0.3}
+          rx={2}
+          style={{ cursor: 'ew-resize' }}
+          onPointerDown={(e) => handlePointerDown(e, { kind: 'paddingLeft' })}
+        />
+        {/* visual indicator dots */}
+        <circle cx={paddingLeft} cy={paddingTop + chartHeight / 2 - 8} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft} cy={paddingTop + chartHeight / 2} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft} cy={paddingTop + chartHeight / 2 + 8} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+      </g>
+
+      {/* Right padding handle */}
+      <g className={dragHandleStyle}>
+        <rect
+          x={paddingLeft + chartWidth - 3}
+          y={paddingTop}
+          width={6}
+          height={chartHeight}
+          fill="#3b82f6"
+          opacity={0.3}
+          rx={2}
+          style={{ cursor: 'ew-resize' }}
+          onPointerDown={(e) => handlePointerDown(e, { kind: 'paddingRight' })}
+        />
+        <circle cx={paddingLeft + chartWidth} cy={paddingTop + chartHeight / 2 - 8} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth} cy={paddingTop + chartHeight / 2} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth} cy={paddingTop + chartHeight / 2 + 8} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+      </g>
+
+      {/* Top padding handle */}
+      <g className={dragHandleStyle}>
+        <rect
+          x={paddingLeft}
+          y={paddingTop - 3}
+          width={chartWidth}
+          height={6}
+          fill="#3b82f6"
+          opacity={0.3}
+          rx={2}
+          style={{ cursor: 'ns-resize' }}
+          onPointerDown={(e) => handlePointerDown(e, { kind: 'paddingTop' })}
+        />
+        <circle cx={paddingLeft + chartWidth / 2 - 8} cy={paddingTop} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth / 2} cy={paddingTop} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth / 2 + 8} cy={paddingTop} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+      </g>
+
+      {/* Bottom padding handle */}
+      <g className={dragHandleStyle}>
+        <rect
+          x={paddingLeft}
+          y={paddingTop + chartHeight - 3}
+          width={chartWidth}
+          height={6}
+          fill="#3b82f6"
+          opacity={0.3}
+          rx={2}
+          style={{ cursor: 'ns-resize' }}
+          onPointerDown={(e) => handlePointerDown(e, { kind: 'paddingBottom' })}
+        />
+        <circle cx={paddingLeft + chartWidth / 2 - 8} cy={paddingTop + chartHeight} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth / 2} cy={paddingTop + chartHeight} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+        <circle cx={paddingLeft + chartWidth / 2 + 8} cy={paddingTop + chartHeight} r={1.5} fill="#3b82f6" opacity={0.6} style={{ pointerEvents: 'none' }} />
+      </g>
     </svg>
   );
 }

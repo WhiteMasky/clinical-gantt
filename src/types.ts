@@ -25,6 +25,11 @@ export interface ChartConfig {
   fontSize: number;
   xAxisInterval: number;
   canvasWidth: number;
+  paddingLeft: number;
+  paddingRight: number;
+  paddingTop: number;
+  paddingBottom: number;
+  trackGap: number; // extra vertical gap between tracks (px)
   exportBg: 'transparent' | 'white';
 }
 
